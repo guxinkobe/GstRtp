@@ -1,18 +1,64 @@
 #ifndef __AVCVIDEO_H
 #define __AVCVIDEO_H
 
-
+#include <iostream>
 #include <string>
 #include <gst/gst.h>
 
 extern "C"{
 #include "JenDebug.h"
-
-
 }
 #define	 	MAX_NAL_SIZE	512
 extern int iAvcStreamLogLevel;
-//===============================// Struct for SetDisplayAxis
+
+
+class StreamPlayer{
+
+public:
+	StreamPlayer(){
+		std::cout<< "StreamPlayer construct" <<std::endl;
+
+		pStreamPipeline = NULL;
+		pSource = NULL;
+		pVpuDec = NULL;
+		pVideoConv = NULL;
+		pVideoEnc = NULL;
+		pVideoparse = NULL;
+		pVideoSink = NULL;
+	}
+	virtual ~StreamPlayer(){}
+
+	/*
+	 * init player,request resource
+	 */
+	virtual int InitStreamPlayer(){
+		gst_init(NULL, NULL);
+		return 0;
+	}
+	/*
+	 * uinit player,clear resource
+	 */
+	virtual int UinitStreamPlayer() = 0;
+	/*
+	 * do the stream player start operation
+	 */
+	virtual int StartStreamPlayer() = 0;
+
+	/*
+	 * stop the stream player operation
+	 */
+	virtual void StopStreamPlayer() = 0;
+
+	GstElement *pStreamPipeline;
+	GstElement *pSource;
+	GstElement *pVpuDec;
+	GstElement *pVideoConv;
+	GstElement *pVideoEnc;
+	GstElement *pVideoparse;
+	GstElement *pVideoSink;
+
+};
+
 typedef struct{
 	int axis_left;		// Left side of CarPlay display
 	int axis_top;		// Top side of CarPlay display
@@ -21,77 +67,30 @@ typedef struct{
 }stVideoAxis;
 
 
-
-//=====================================================================//
-// Change video axis,
-// Since we have to pause pipeline, at the end, we will set the pipeline to pending state if pending state is not GST_STATE_VOID_PENDING.
-//      else we will set pipeline to previous current state
-// DisplayAxis:
-	// int axis_left;		// Left side of video display
-	// int axis_top;		// Top side of video display
-	// int disp_width;		// Video width
-	// int disp_height;		// Video height
-//=====================================================================//
-int SetDisplayAxis(stVideoAxis *DisplayAxis);
-
-//=====================================================================//
-// Set overlay to top in order to Show video surface
-//=====================================================================//
-int ShowVideoSurface(void);
-
-//=====================================================================//
-// Set HMI layer to top in order to Hide video surface (If HMI is opaque)
-//=====================================================================//
-int HideVideoSurface(void);
-
-//=====================================================================//
-// Send H264 raw video to AVC Stream Player
-// pVideoBuffer: H264 video buffer
-// iBufferSize: size of video
-//
-// Return:
-//   0:   if successfully
-//	 < 0: fail
-// Note:
-// 1. You have to check the return value to secure the operation !
-// 2. Call this method only after StartCarPlayVideo
-// 3. Feed complete SPS and PPS NAL header together, without any other frames, we will record it as Nal header, may reuse it !!!
-//    It's better to ensure each NAL buffer (pVideoBuffer) is complete even though we use h264 parser !!!
-//
-//=====================================================================//
-int FeedH264ToPlayer(void *pVideoBuffer, int iBufferSize);
-
-
-class RtpSreamReciever{
+class RtpSreamReciever : public StreamPlayer{
 
 public:
-	RtpSreamReciever(int port){
+	RtpSreamReciever(int port, bool syncclock = false){
+		std::cout<< "RtpSreamReciever construct, port:" << port <<std::endl;
 		RtpSrcPort = port;
+		bSyncOnClock = syncclock;
 
-		pRtpSreamReciever = NULL;
-		pAppSource = NULL;
 		pRtpBin = NULL;
 		pRtpDepay = NULL;
-		pVpuDec = NULL;
-		pVideoConv = NULL;
-		pVideoSink = NULL;
 	}
-	int InitRtpStreamReciever(bool bSyncOnClock);
-	int UinitRtpStreamReciever(void);
-	int StartRtpStreamReciever(stVideoAxis *DispAxis, int bShowSurface);
-	void StopRtpStreamReciever();
+
+	int InitStreamPlayer();
+	int StartStreamPlayer();
+	int UinitStreamPlayer();
+	void StopStreamPlayer();
 
 private:
 
-	GstElement *pRtpSreamReciever;
-	GstElement *pAppSource;
 	GstElement *pRtpBin;
 	GstElement *pRtpDepay;
-	GstElement *pVpuDec;
-	GstElement *pVideoConv;
-	GstElement *pVideoSink;
 
 	int RtpSrcPort;
+	bool bSyncOnClock;
 };
 
 typedef enum{
@@ -101,20 +100,18 @@ typedef enum{
 
 }SENDER_MODE;
 
-class RtpStreamSender{
+class RtpStreamSender : public StreamPlayer{
 public:
-	RtpStreamSender(int rtpport, int rtcpport, SENDER_MODE mode){
+	RtpStreamSender(int rtpport, int rtcpport, SENDER_MODE mode, std::string path=" ", bool syncclock=false){
+
+		std::cout<< "RtpStreamSender construct, rtpport:" << rtpport <<std::endl;
 		RtpsinkPort = rtpport;
 		RtcpsinkPort = rtcpport;
 		sendMode = mode;
+		bSyncOnClock = syncclock;
+		filepath = path;
 
-		pRtpStreamSender = NULL;
-		pSource = NULL;
 		pRtpBin = NULL;
-		pVpuDec = NULL;
-		pVideoConv = NULL;
-		pVideoEnc = NULL;
-		pVideoparse = NULL;
 		pRtppay = NULL;
 		pUdpRtpsink = NULL;
 		pUdpRtcpsink = NULL;
@@ -122,22 +119,17 @@ public:
 	}
 	~RtpStreamSender(){}
 
-	int InitRtpStreamSender(bool bSyncOnClock, std::string filepath);
-	int UinitRtpStreamSender(void);
-	int StartRtpStreamSender(stVideoAxis *DispAxis, int bShowSurface);
-	void StopRtpStreamSender();
+	int InitStreamPlayer();
+	int StartStreamPlayer();
+	int UinitStreamPlayer();
+	void StopStreamPlayer();
+
 	int FeedH264ToPlayer(void *pVideoBuffer, int iBufferSize);
 
 private:
 	void request_sender_pad();
 
-	GstElement *pRtpStreamSender;
-	GstElement *pSource;
 	GstElement *pRtpBin;
-	GstElement *pVpuDec;
-	GstElement *pVideoConv;
-	GstElement *pVideoEnc;
-	GstElement *pVideoparse;
 	GstElement *pRtppay;
 	GstElement *pUdpRtpsink;
 	GstElement *pUdpRtcpsink;
@@ -146,6 +138,8 @@ private:
 	int RtpsinkPort;
 	int RtcpsinkPort;
 	SENDER_MODE sendMode;
+	bool bSyncOnClock;
+	std::string filepath;
 
 };
 

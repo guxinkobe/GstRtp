@@ -73,7 +73,7 @@ void *GenerateAVCDataThread(void *argv)
 					DEBUG("bfd: %d!\n", iCnt - iLastPos);
 
 					sender->FeedH264ToPlayer(pVideoBuffer + iLastPos, iCnt - iLastPos);
-					usleep(40*1000);
+					//usleep(40*1000);
 					iLastPos = iCnt;
 
 				}
@@ -99,22 +99,23 @@ void *GenerateAVCDataThread(void *argv)
 	//exit(0);
 }
 
-//#define STREAM_MODE
+#define STREAM
 
 int main()
 {
 	pthread_t ptGenAVC;
 	const char *pVideoFilePath = "/home/guxin/test.264";
 
-#ifdef STREAM_MODE
+#ifdef STREAM
 	sender = new RtpStreamSender(6664,6665, STREAM_MODE);
-#else
-	sender = new RtpStreamSender(6664,6665, FILE_MODE);
-#endif
-	sender->InitRtpStreamSender(false, pVideoFilePath);
-	sender->StartRtpStreamSender(NULL, 0);
 
-#ifdef STREAM_MODE
+#else
+	sender = new RtpStreamSender(6664,6665, FILE_MODE, pVideoFilePath);
+#endif
+	sender->InitStreamPlayer();
+	sender->StartStreamPlayer();
+
+#ifdef STREAM
 	pthread_create(&ptGenAVC, NULL, &GenerateAVCDataThread, (char *)pVideoFilePath);
 #endif
 

@@ -154,7 +154,7 @@ static void on_recievepad_removed(GstElement* object, GstPad* pad, gpointer user
 }
 
 
-int RtpSreamReciever::InitRtpStreamReciever(bool bSyncOnClock)
+int RtpSreamReciever::InitStreamPlayer()
 {
 	printf("\n\e[33m ==> %s: Build Time: %s-%s! \e[0m\n", __FUNCTION__, __DATE__, __TIME__);
 
@@ -166,29 +166,28 @@ int RtpSreamReciever::InitRtpStreamReciever(bool bSyncOnClock)
 
 	gst_init(NULL, NULL);
 
-
 	SetDebugLogLevel("JEN_AVC_STREAM_LOGLEVEL", INFO_LEVEL);
 
-	pRtpSreamReciever = gst_pipeline_new("RtpSreamReciever");
-	if(NULL == pRtpSreamReciever)
+	pStreamPipeline = gst_pipeline_new("RtpSreamReciever");
+	if(NULL == pStreamPipeline)
 	{
 		ERROR("pTinyMediaPlayer == NULL!\n");
 		return -1;
 	}
-	MsgBus = gst_element_get_bus(pRtpSreamReciever);
+	MsgBus = gst_element_get_bus(pStreamPipeline);
 	bus_watch_id = gst_bus_add_watch(MsgBus, bus_call, NULL);
 	//==============================// appsrc
-	pAppSource = gst_element_factory_make("udpsrc", "TinyUdpsrc");
-	if(NULL == pAppSource)
+	pSource = gst_element_factory_make("udpsrc", "TinyUdpsrc");
+	if(NULL == pSource)
 	{
 		ERROR("pAppSource == NULL!\n");
 		return -2;
 	}
 	x264Caps = gst_caps_from_string("application/x-rtp,media=video,payload=96,clock-rate=90000,encoding-name=H264");
-	g_object_set(pAppSource, "caps", x264Caps, NULL);
+	g_object_set(pSource, "caps", x264Caps, NULL);
 	gst_caps_unref(x264Caps);
 
-	g_object_set(pAppSource, "port", RtpSrcPort, NULL);
+	g_object_set(pSource, "port", RtpSrcPort, NULL);
 
 	pRtpBin = gst_element_factory_make("rtpbin", "TinyRtpbin");
 	pRtpDepay = gst_element_factory_make("rtph264depay", "TinyRtpdepay");
@@ -199,8 +198,8 @@ int RtpSreamReciever::InitRtpStreamReciever(bool bSyncOnClock)
 	g_signal_connect(pRtpBin, "pad-added", G_CALLBACK(on_recievepad_added), pRtpDepay);
 	g_signal_connect(pRtpBin, "pad-removed", G_CALLBACK(on_recievepad_removed), NULL);
 
-	gst_bin_add_many(GST_BIN(pRtpSreamReciever),
-				pAppSource,
+	gst_bin_add_many(GST_BIN(pStreamPipeline),
+				pSource,
 				pRtpBin,
 				pRtpDepay,
 				pVpuDec,
@@ -210,7 +209,7 @@ int RtpSreamReciever::InitRtpStreamReciever(bool bSyncOnClock)
 
 
 	bRetValue = gst_element_link_many(
-			pAppSource,
+			pSource,
 			pRtpBin,
 			NULL);
 	if(false == bRetValue)
@@ -235,7 +234,7 @@ int RtpSreamReciever::InitRtpStreamReciever(bool bSyncOnClock)
 }
 
 
-int RtpSreamReciever::UinitRtpStreamReciever(void)
+int RtpSreamReciever::UinitStreamPlayer()
 {
 	DEBUG("UninitStreamPlayer...\n");
 
@@ -245,9 +244,10 @@ int RtpSreamReciever::UinitRtpStreamReciever(void)
     DEBUG ("Start: %d-%d\n", StartTime.tv_sec, StartTime.tv_usec);
 #endif
 
-    StopRtpStreamReciever();
+    StopStreamPlayer();
 
-	gst_object_unref(pRtpSreamReciever);
+	gst_object_unref(pStreamPipeline);
+	pStreamPipeline = NULL;
 
 #ifdef DEF_DEBUG_TIME
     gettimeofday(&FinishTime, NULL);
@@ -258,11 +258,11 @@ int RtpSreamReciever::UinitRtpStreamReciever(void)
 }
 
 
-int RtpSreamReciever::StartRtpStreamReciever(stVideoAxis *DispAxis, int bShowSurface)
+int RtpSreamReciever::StartStreamPlayer()
 {
-	INFO("StartCarPlayVideo..., show: %d\n", bShowSurface);
+	INFO("StartCarPlayVideo...\n");
 
-	gst_element_set_state(pRtpSreamReciever, GST_STATE_PLAYING);
+	gst_element_set_state(pStreamPipeline, GST_STATE_PLAYING);
 
 	INFO("StartCarPlayVideo OK\n");
 
@@ -270,12 +270,12 @@ int RtpSreamReciever::StartRtpStreamReciever(stVideoAxis *DispAxis, int bShowSur
 }
 
 
-void RtpSreamReciever::StopRtpStreamReciever(void)
+void RtpSreamReciever::StopStreamPlayer()
 {
     INFO("StopCarPlayVideo...\n");
 
-	gst_element_set_state(pRtpSreamReciever, GST_STATE_NULL);
-	gst_element_get_state(pRtpSreamReciever, NULL, NULL, 2);
+	gst_element_set_state(pStreamPipeline, GST_STATE_NULL);
+	gst_element_get_state(pStreamPipeline, NULL, NULL, 2);
 
     INFO("StopCarPlayVideo OK\n");
 }
@@ -388,7 +388,7 @@ void RtpStreamSender::request_sender_pad()
 	gst_object_unref (GST_OBJECT (sinkpad));
 }
 
-int RtpStreamSender::InitRtpStreamSender(bool bSyncOnClock, std::string filepath)
+int RtpStreamSender::InitStreamPlayer()
 {
 	printf("\n\e[33m ==> %s: Build Time: %s-%s! \e[0m\n", __FUNCTION__, __DATE__, __TIME__);
 
@@ -402,13 +402,13 @@ int RtpStreamSender::InitRtpStreamSender(bool bSyncOnClock, std::string filepath
 
 	SetDebugLogLevel("JEN_AVC_STREAM_LOGLEVEL", INFO_LEVEL);
 
-	pRtpStreamSender = gst_pipeline_new("RtpStreamSender");
-	if(NULL == pRtpStreamSender)
+	pStreamPipeline = gst_pipeline_new("RtpStreamSender");
+	if(NULL == pStreamPipeline)
 	{
 		ERROR("pTinyMediaPlayer == NULL!\n");
 		return -1;
 	}
-	MsgBus = gst_element_get_bus(pRtpStreamSender);
+	MsgBus = gst_element_get_bus(pStreamPipeline);
 	bus_watch_id = gst_bus_add_watch(MsgBus, bus_call, NULL);
 
 	switch(sendMode)
@@ -463,7 +463,7 @@ int RtpStreamSender::InitRtpStreamSender(bool bSyncOnClock, std::string filepath
 	g_object_set(pUdpRtcpsink, "sync", false, NULL);
 	g_object_set(pUdpRtcpsink, "async", false, NULL);
 
-	gst_bin_add_many(GST_BIN(pRtpStreamSender),
+	gst_bin_add_many(GST_BIN(pStreamPipeline),
 				pSource,
 				pVideoparse,
 				pVpuDec,
@@ -497,7 +497,7 @@ int RtpStreamSender::InitRtpStreamSender(bool bSyncOnClock, std::string filepath
 }
 
 
-int RtpStreamSender::UinitRtpStreamSender(void)
+int RtpStreamSender::UinitStreamPlayer(void)
 {
 	DEBUG("UninitStreamPlayer...\n");
 
@@ -507,10 +507,10 @@ int RtpStreamSender::UinitRtpStreamSender(void)
     DEBUG ("Start: %d-%d\n", StartTime.tv_sec, StartTime.tv_usec);
 #endif
 
-    StopRtpStreamSender();
+    StopStreamPlayer();
 
-	gst_object_unref(pRtpStreamSender);
-	pRtpStreamSender = NULL;
+	gst_object_unref(pStreamPipeline);
+	pStreamPipeline = NULL;
 
 #ifdef DEF_DEBUG_TIME
     gettimeofday(&FinishTime, NULL);
@@ -521,11 +521,11 @@ int RtpStreamSender::UinitRtpStreamSender(void)
 }
 
 
-int RtpStreamSender::StartRtpStreamSender(stVideoAxis *DispAxis, int bShowSurface)
+int RtpStreamSender::StartStreamPlayer()
 {
-	INFO("StartCarPlayVideo..., show: %d\n", bShowSurface);
+	INFO("StartCarPlayVideo...\n");
 
-	gst_element_set_state(pRtpStreamSender, GST_STATE_PLAYING);
+	gst_element_set_state(pStreamPipeline, GST_STATE_PLAYING);
 	iGstVideoStoped = false;
 	INFO("StartCarPlayVideo OK\n");
 
@@ -533,12 +533,12 @@ int RtpStreamSender::StartRtpStreamSender(stVideoAxis *DispAxis, int bShowSurfac
 }
 
 
-void RtpStreamSender::StopRtpStreamSender(void)
+void RtpStreamSender::StopStreamPlayer(void)
 {
     INFO("StopCarPlayVideo...\n");
 
-	gst_element_set_state(pRtpStreamSender, GST_STATE_NULL);
-	gst_element_get_state(pRtpStreamSender, NULL, NULL, 2);
+	gst_element_set_state(pStreamPipeline, GST_STATE_NULL);
+	gst_element_get_state(pStreamPipeline, NULL, NULL, 2);
 	iGstVideoStoped = true;
     INFO("StopCarPlayVideo OK\n");
 }
