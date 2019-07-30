@@ -49,6 +49,7 @@ public:
 	 */
 	virtual void StopStreamPlayer() = 0;
 
+
 	GstElement *pStreamPipeline;
 	GstElement *pSource;
 	GstElement *pVpuDec;
@@ -83,6 +84,10 @@ public:
 	int StartStreamPlayer();
 	int UinitStreamPlayer();
 	void StopStreamPlayer();
+
+	static void on_recievepad_added(GstElement* object, GstPad* pad, gpointer user_data);
+	static void on_recievepad_removed(GstElement* object, GstPad* pad, gpointer user_data);
+
 
 private:
 
@@ -125,6 +130,11 @@ public:
 	void StopStreamPlayer();
 
 	int FeedH264ToPlayer(void *pVideoBuffer, int iBufferSize);
+
+	static void on_sendpad_removed(GstElement* object, GstPad* pad, gpointer user_data);
+	static void on_sendpad_added(GstElement* object, GstPad* pad, gpointer user_data);
+	static void callbackNeedDataAppsource(GstElement* appsource, guint arg0, gpointer user_data);
+	static void callbackEnoughDataAppsource(GstElement* object, gpointer user_data);
 
 private:
 	void request_sender_pad();

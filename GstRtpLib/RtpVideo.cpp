@@ -83,7 +83,7 @@ int bus_call(GstBus *bus, GstMessage *msg, void *data)
  * class RtpSreamReciever,for recieve rtp stream
  *
 ==========================================================================*/
-void on_recievepad_added(GstElement* object, GstPad* pad, gpointer user_data)
+void RtpSreamReciever::on_recievepad_added(GstElement* object, GstPad* pad, gpointer user_data)
 {
 	INFO("src pad added\n");
 
@@ -133,7 +133,7 @@ void on_recievepad_added(GstElement* object, GstPad* pad, gpointer user_data)
 	//gst_caps_unref(caps);
 }
 
-static void on_recievepad_removed(GstElement* object, GstPad* pad, gpointer user_data)
+void RtpSreamReciever::on_recievepad_removed(GstElement* object, GstPad* pad, gpointer user_data)
 {
 	INFO("pad removed\n");
 
@@ -288,7 +288,7 @@ void RtpSreamReciever::StopStreamPlayer()
  * class RtpStreamSender,for send rtp stream
  *
 ==========================================================================*/
-void on_sendpad_added(GstElement* object, GstPad* pad, gpointer user_data)
+void RtpStreamSender::on_sendpad_added(GstElement* object, GstPad* pad, gpointer user_data)
 {
 	INFO("sender pad added\n");
 
@@ -320,7 +320,7 @@ void on_sendpad_added(GstElement* object, GstPad* pad, gpointer user_data)
 	//gst_caps_unref(caps);
 }
 
-static void on_sendpad_removed(GstElement* object, GstPad* pad, gpointer user_data)
+void RtpStreamSender::on_sendpad_removed(GstElement* object, GstPad* pad, gpointer user_data)
 {
 	INFO("pad removed\n");
 
@@ -340,7 +340,7 @@ static void on_sendpad_removed(GstElement* object, GstPad* pad, gpointer user_da
 	//gst_caps_unref(caps);
 }
 
-static void callbackNeedDataAppsource(GstElement* appsource,
+void RtpStreamSender::callbackNeedDataAppsource(GstElement* appsource,
         guint arg0,
         gpointer user_data)
 {
@@ -350,7 +350,7 @@ static void callbackNeedDataAppsource(GstElement* appsource,
 }
 
 
-static void callbackEnoughDataAppsource(GstElement* object,
+void RtpStreamSender::callbackEnoughDataAppsource(GstElement* object,
         gpointer user_data)
 {
 	DEBUG("Enough data!\n");
