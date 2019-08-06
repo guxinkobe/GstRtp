@@ -692,3 +692,177 @@ int RtpStreamSender::FeedH264ToPlayer(void *pVideoBuffer, int iBufferSize)
 
 	return 0;
 }
+
+
+
+/*=================================*/
+void RtmpReciever::on_pad_added(GstElement* object, GstPad* pad, gpointer user_data)
+{
+	INFO("pad added\n");
+
+	GstCaps *caps;
+	GstStructure *str;
+	gchar *name;
+	GstPad *videosink;
+	GstPad *audiosink;
+	GstPadLinkReturn ret;
+
+	g_assert(user_data);
+	RtmpReciever *reciever = (RtmpReciever *)user_data;
+
+	caps = gst_pad_get_current_caps(pad);
+	str = gst_caps_get_structure(caps, 0);
+
+	g_assert(str);
+
+	name = (gchar *)gst_structure_get_name(str);
+	INFO("pad name:%s\n",name);
+
+	if(g_strrstr(name, "video"))
+	{
+		videosink = gst_element_get_static_pad(reciever->pVideoConv, "sink");
+		g_assert(videosink);
+		ret = gst_pad_link(pad, videosink);
+		g_debug("video gst_pad_link return:%d\n",ret);
+		gst_object_unref(videosink);
+	}
+	if(g_strrstr(name, "audio"))
+	{
+		audiosink = gst_element_get_static_pad(reciever->pAudioConv, "sink");
+		g_assert(audiosink);
+		ret = gst_pad_link(pad, audiosink);
+		g_debug("audio gst_pad_link return:%d\n",ret);
+		gst_object_unref(audiosink);
+	}
+	gst_caps_unref(caps);
+}
+
+
+int RtmpReciever::InitStreamPlayer()
+{
+	printf("\n\e[33m ==> %s: Build Time: %s-%s! \e[0m\n", __FUNCTION__, __DATE__, __TIME__);
+
+	GstCaps *x264Caps;
+	bool bRetValue = false;
+	guint64 u64MaxBytes = 0;
+	guint bus_watch_id;
+	GstBus *MsgBus;
+
+	gst_init(NULL, NULL);
+
+	SetDebugLogLevel("JEN_AVC_STREAM_LOGLEVEL", INFO_LEVEL);
+
+	pStreamPipeline = gst_pipeline_new("RtmpReciever");
+	if(NULL == pStreamPipeline)
+	{
+		ERROR("pTinyMediaPlayer == NULL!\n");
+		return -1;
+	}
+	MsgBus = gst_element_get_bus(pStreamPipeline);
+	bus_watch_id = gst_bus_add_watch(MsgBus, bus_call, NULL);
+
+	pSource = gst_element_factory_make("rtmpsrc", "Tinyrtmpsrc");
+	g_object_set(pSource, "location", "rtmp://192.168.40.131/live/cuc", NULL);
+
+
+	pVpuDec = gst_element_factory_make("decodebin", "Tinydecodebin");
+	g_signal_connect(pVpuDec, "pad-added", G_CALLBACK(on_pad_added), this);
+
+
+	pVideoConv = gst_element_factory_make("videoconvert", "TinyVideoconv");
+	pVideoSink = gst_element_factory_make("xvimagesink", "TinyVideosink");
+	pAudioConv = gst_element_factory_make("audioconvert", "TinyAudioconv");
+	pAudioSink = gst_element_factory_make("pulsesink", "TinyAudiosink");
+
+	g_object_set(pAudioSink, "sync", false, NULL);
+	g_object_set(pVideoSink, "sync", false, NULL);
+
+	gst_bin_add_many(GST_BIN(pStreamPipeline),
+					pSource,
+					pVpuDec,
+					pVideoConv,
+					pVideoSink,
+					pAudioConv,
+					pAudioSink,
+					NULL);
+
+
+	bRetValue = gst_element_link_many(
+				pSource,
+				pVpuDec,
+				NULL);
+	if(false == bRetValue)
+	{
+		ERROR("==> 3 gst_element_link_many failed!\n");
+		return -3;
+	}
+
+	bRetValue = gst_element_link_many(
+					pVideoConv,
+					pVideoSink,
+					NULL);
+	if(false == bRetValue)
+	{
+		ERROR("==>4 gst_element_link_many failed!\n");
+		return -4;
+	}
+
+	bRetValue = gst_element_link_many(
+					pAudioConv,
+					pAudioSink,
+					NULL);
+	if(false == bRetValue)
+	{
+		ERROR("==>4 gst_element_link_many failed!\n");
+		return -4;
+	}
+
+	return 0;
+
+}
+
+
+
+int RtmpReciever::UinitStreamPlayer(void)
+{
+	DEBUG("UninitStreamPlayer...\n");
+
+#ifdef DEF_DEBUG_TIME
+	struct timeval StartTime, FinishTime;
+    gettimeofday(&StartTime, NULL);
+    DEBUG ("Start: %d-%d\n", StartTime.tv_sec, StartTime.tv_usec);
+#endif
+
+    StopStreamPlayer();
+
+	gst_object_unref(pStreamPipeline);
+	pStreamPipeline = NULL;
+
+#ifdef DEF_DEBUG_TIME
+    gettimeofday(&FinishTime, NULL);
+    DEBUG ("Finish: %d-%d\n", FinishTime.tv_sec, FinishTime.tv_usec);
+#endif
+
+	return 0;
+}
+
+
+int RtmpReciever::StartStreamPlayer()
+{
+	INFO("StartCarPlayVideo...\n");
+
+	gst_element_set_state(pStreamPipeline, GST_STATE_PLAYING);
+	INFO("StartCarPlayVideo OK\n");
+
+	return 0;
+}
+
+
+void RtmpReciever::StopStreamPlayer(void)
+{
+    INFO("StopCarPlayVideo...\n");
+
+	gst_element_set_state(pStreamPipeline, GST_STATE_NULL);
+	gst_element_get_state(pStreamPipeline, NULL, NULL, 2);
+    INFO("StopCarPlayVideo OK\n");
+}

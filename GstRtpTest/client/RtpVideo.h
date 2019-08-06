@@ -25,6 +25,12 @@ public:
 		pVideoEnc = NULL;
 		pVideoparse = NULL;
 		pVideoSink = NULL;
+
+		pAudioparse = NULL;
+		pAudioSink = NULL;
+		pAudioEnc = NULL;
+		pAudioConv = NULL;
+		pAudioDec = NULL;
 	}
 	virtual ~StreamPlayer(){}
 
@@ -52,11 +58,18 @@ public:
 
 	GstElement *pStreamPipeline;
 	GstElement *pSource;
+
 	GstElement *pVpuDec;
 	GstElement *pVideoConv;
 	GstElement *pVideoEnc;
 	GstElement *pVideoparse;
 	GstElement *pVideoSink;
+
+	GstElement *pAudioparse;
+	GstElement *pAudioSink;
+	GstElement *pAudioEnc;
+	GstElement *pAudioConv;
+	GstElement *pAudioDec;
 
 };
 
@@ -150,6 +163,23 @@ private:
 	SENDER_MODE sendMode;
 	bool bSyncOnClock;
 	std::string filepath;
+
+};
+
+
+
+class RtmpReciever : public StreamPlayer{
+
+public:
+	int InitStreamPlayer();
+	int StartStreamPlayer();
+	int UinitStreamPlayer();
+	void StopStreamPlayer();
+
+	static void on_pad_added(GstElement* object, GstPad* pad, gpointer user_data);
+
+private:
+	GstElement *pDemux;
 
 };
 
